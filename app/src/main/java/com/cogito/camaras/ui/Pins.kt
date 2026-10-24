@@ -10,17 +10,21 @@ import com.cogito.camaras.Kind
 /** Pines estilo Google Maps: gota de color con un dibujo blanco adentro. */
 object Pins {
 
-    const val RED = 0xFFD93025.toInt()   // estatal
-    const val GRAY = 0xFF5F6368.toInt()  // sin datos o privada
-    const val BLUE = 0xFF1A73E8.toInt()
+    const val RED = 0xFFD93025.toInt()
+    const val PURPLE = 0xFF8E24AA.toInt()  // murales
+    const val GREEN = 0xFF188038.toInt()   // puntos panorámicos
+    const val BLUE = 0xFF1A73E8.toInt()    // estacionamientos
 
-    fun all(density: Float): Map<String, Bitmap> = buildMap {
-        for (state in listOf(true, false)) for (k in Kind.entries) {
-            put("pin_" + (if (state) "s" else "o") + "_" + k.name.lowercase(), pin(density, if (state) RED else GRAY, k))
-        }
+    fun colorOf(k: Kind) = when (k) {
+        Kind.FIXED -> PURPLE
+        Kind.DOME -> GREEN
+        Kind.ALPR -> BLUE
     }
 
-    fun pin(density: Float, color: Int, kind: Kind, scale: Float = 1f): Bitmap {
+    fun all(density: Float): Map<String, Bitmap> =
+        Kind.entries.associate { k -> "pin_" + k.name.lowercase() to pin(density, colorOf(k), k) }
+
+    fun pin(density: Float, color: Int, kind: Kind?, scale: Float = 1f): Bitmap {
         val w = (30 * density * scale).toInt()
         val h = (40 * density * scale).toInt()
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -51,36 +55,48 @@ object Pins {
         // Dibujo blanco
         val white = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = 0xFFFFFFFF.toInt() }
         val u = r / 10f
+        if (kind == null) {
+            // Marca de lugar clásica: círculo blanco en el centro
+            val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = 0xFF7A1A12.toInt() }
+            c.drawCircle(cx, cy, r * 0.36f, dot)
+            return bmp
+        }
+        val ink = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
         when (kind) {
             Kind.FIXED -> {
-                // Cuerpo de cámara inclinado, lente y soporte
-                c.save()
-                c.rotate(-18f, cx, cy)
-                c.drawRoundRect(RectF(cx - 5.5f * u, cy - 3f * u, cx + 3.5f * u, cy + 2f * u), u, u, white)
-                c.drawRect(cx + 3.5f * u, cy - 2f * u, cx + 6f * u, cy + 1f * u, white)
-                c.restore()
-                c.drawRect(cx - 1.2f * u, cy + 1.5f * u, cx + 0.4f * u, cy + 5f * u, white)
-                c.drawRect(cx - 4.5f * u, cy + 4f * u, cx + 0.4f * u, cy + 5.4f * u, white)
+                // Paleta de pintor
+                c.drawCircle(cx, cy, 6.2f * u, white)
+                c.drawCircle(cx + 2.6f * u, cy + 2.6f * u, 1.7f * u, ink)
+                c.drawCircle(cx - 2.6f * u, cy - 1.8f * u, 1.1f * u, ink)
+                c.drawCircle(cx + 0.6f * u, cy - 3.4f * u, 1.1f * u, ink)
+                c.drawCircle(cx + 3.6f * u, cy - 1.2f * u, 1.1f * u, ink)
             }
             Kind.DOME -> {
-                c.drawRect(cx - 6f * u, cy - 4f * u, cx + 6f * u, cy - 2.6f * u, white)
-                c.drawArc(RectF(cx - 5f * u, cy - 7.5f * u, cx + 5f * u, cy + 4.5f * u), 0f, 180f, true, white)
-                val lens = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
-                c.drawCircle(cx, cy + 0.6f * u, 1.6f * u, lens)
+                // Montañas
+                val m = Path().apply {
+                    moveTo(cx - 6.8f * u, cy + 4.2f * u)
+                    lineTo(cx - 1.8f * u, cy - 4.6f * u)
+                    lineTo(cx + 1.2f * u, cy + 0.6f * u)
+                    lineTo(cx + 3f * u, cy - 2.4f * u)
+                    lineTo(cx + 6.8f * u, cy + 4.2f * u)
+                    close()
+                }
+                c.drawPath(m, white)
             }
             Kind.ALPR -> {
-                // Patente
-                val plate = RectF(cx - 6.5f * u, cy - 3.5f * u, cx + 6.5f * u, cy + 3.5f * u)
-                c.drawRoundRect(plate, u, u, white)
-                val ink = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
-                c.drawRect(cx - 5f * u, cy - 1.4f * u, cx - 1.5f * u, cy + 1.4f * u, ink)
-                c.drawRect(cx - 0.8f * u, cy - 1.4f * u, cx + 0.8f * u, cy + 1.4f * u, ink)
-                c.drawRect(cx + 1.5f * u, cy - 1.4f * u, cx + 5f * u, cy + 1.4f * u, ink)
+                // Letra P
+                val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    this.color = 0xFFFFFFFF.toInt()
+                    textSize = 12.5f * u
+                    typeface = android.graphics.Typeface.create(android.graphics.Typeface.SANS_SERIF, android.graphics.Typeface.BOLD)
+                    textAlign = Paint.Align.CENTER
+                }
+                c.drawText("P", cx, cy + 4.4f * u, tp)
             }
         }
         return bmp
     }
 
-    /** Punto azul con aro blanco, para el pin de "marcar acá". */
-    fun placing(density: Float): Bitmap = pin(density, BLUE, Kind.FIXED, 1.25f)
+    /** Marca de lugar simple (sin dibujo) para elegir dónde va el punto nuevo. */
+    fun placing(density: Float): Bitmap = pin(density, RED, null, 1.25f)
 }

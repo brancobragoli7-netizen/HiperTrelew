@@ -7,12 +7,17 @@ import kotlinx.coroutines.withContext
 import java.util.Locale
 
 enum class Kind(val label: String) {
-    FIXED("Cámara fija"),
-    DOME("Cámara domo"),
-    ALPR("Lectora de patentes"),
+    FIXED("Mural"),
+    DOME("Punto panorámico"),
+    ALPR("Estacionamiento"),
 }
 
-enum class Filter(val label: String) { ALL("Todas"), STATE("Estatales"), ALPR("Patentes") }
+enum class Filter(val label: String, val kind: Kind?) {
+    ALL("Todos", null),
+    MURAL("Murales", Kind.FIXED),
+    VIEW("Panorámicos", Kind.DOME),
+    PARKING("Estacionamientos", Kind.ALPR),
+}
 
 /** Un punto marcado y guardado en este teléfono. */
 data class Camera(
@@ -47,14 +52,10 @@ data class Camera(
 
     val directionDeg: Int? = tags["camera:direction"]?.let { parseDirection(it) }
 
-    fun matches(f: Filter) = when (f) {
-        Filter.ALL -> true
-        Filter.STATE -> isState
-        Filter.ALPR -> kind == Kind.ALPR
-    }
+    fun matches(f: Filter) = f.kind == null || f.kind == kind
 
-    /** Nombre del ícono en el mapa: color por quién la opera, dibujo por tipo. */
-    val icon: String get() = "pin_" + (if (isState) "s" else "o") + "_" + kind.name.lowercase()
+    /** Nombre del ícono en el mapa: color y dibujo según el tipo de lugar. */
+    val icon: String get() = "pin_" + kind.name.lowercase()
 
     companion object {
         val STATE_TYPES = setOf(

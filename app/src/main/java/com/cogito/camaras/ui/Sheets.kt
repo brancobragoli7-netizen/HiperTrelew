@@ -68,7 +68,7 @@ fun open(context: Context, url: String) {
 }
 
 fun directions(context: Context, lat: Double, lon: Double) {
-    val nav = Intent(Intent.ACTION_VIEW, Uri.parse("geo:$lat,$lon?q=$lat,$lon(Cámara)")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    val nav = Intent(Intent.ACTION_VIEW, Uri.parse("geo:$lat,$lon?q=$lat,$lon(Punto)")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     runCatching { context.startActivity(nav) }.onFailure {
         open(context, "https://www.google.com/maps/dir/?api=1&destination=$lat,$lon")
     }
@@ -87,7 +87,7 @@ private val MOUNTS = mapOf(
     "traffic_signals" to "Semáforo", "building" to "Edificio",
 )
 
-// ───────────────────────── Detalle de una cámara ─────────────────────────
+// ───────────────────────── Detalle de un punto ─────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,11 +105,8 @@ fun CameraSheet(cam: Camera, onEdit: () -> Unit, onDelete: () -> Unit, onDismiss
         ) {
             Text(cam.kind.label, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(8.dp))
-            val (badge, color) = when {
-                cam.isState -> "Estatal" to Red
-                cam.isKnownPrivate -> "Privada" to Gray
-                else -> "Operador sin datos" to Gray
-            }
+            val badge = cam.agency?.takeIf { it != Agency.UNKNOWN }?.label ?: "Sin organismo"
+            val color = Color(Pins.colorOf(cam.kind))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(10.dp).background(color, CircleShape))
                 Spacer(Modifier.width(8.dp))
@@ -130,26 +127,24 @@ fun CameraSheet(cam: Camera, onEdit: () -> Unit, onDelete: () -> Unit, onDismiss
             }
             Spacer(Modifier.height(20.dp))
 
-            cam.agency?.let { Info("Quién la opera", it.label) }
+            cam.agency?.let { Info("Quién lo administra", it.label) }
             Info("Organismo", cam.operator ?: "Sin datos")
             cam.directionDeg?.let { deg ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
                     Column(Modifier.weight(1f)) {
-                        Text("Apunta hacia", style = MaterialTheme.typography.labelMedium, color = Gray)
+                        Text("Mira hacia", style = MaterialTheme.typography.labelMedium, color = Gray)
                         Text("${directionName(deg)} ($deg°)", style = MaterialTheme.typography.bodyLarge)
                     }
                     Icon(Icons.Default.Navigation, null, tint = Blue, modifier = Modifier.size(28.dp).rotate(deg.toFloat()))
                 }
             }
-            cam.tags["surveillance:zone"]?.let { Info("Vigila", ZONES[it] ?: it) }
-            cam.tags["camera:mount"]?.let { Info("Montada en", MOUNTS[it] ?: it) }
             cam.tags["description"]?.let { Info("Notas", it) }
             cam.tags["ref"]?.let { Info("Número", it) }
             cam.timestamp?.let { ts ->
                 val d = ts.take(10).split("-")
-                if (d.size == 3) Info("Marcada / editada", "${d[2]}/${d[1]}/${d[0]}")
+                if (d.size == 3) Info("Marcado / editado", "${d[2]}/${d[1]}/${d[0]}")
             }
-            if (cam.seenInPerson) Info("Verificación", "Vista en persona")
+            if (cam.seenInPerson) Info("Verificación", "Visitado en persona")
             Spacer(Modifier.height(10.dp))
             Text(
                 "%.6f, %.6f".format(java.util.Locale.US, cam.lat, cam.lon),
@@ -177,7 +172,7 @@ private fun Info(label: String, value: String) {
     }
 }
 
-// ───────────────────────── Formulario de cámara nueva ─────────────────────────
+// ───────────────────────── Formulario de punto nuevo ─────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -199,7 +194,7 @@ fun DraftSheet(
                 .navigationBarsPadding()
                 .padding(bottom = 20.dp)
         ) {
-            Text(if (draft.editingId == null) "Nueva cámara" else "Editar punto", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Medium)
+            Text(if (draft.editingId == null) "Nuevo punto" else "Editar punto", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Medium)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "%.5f, %.5f".format(java.util.Locale.US, draft.lat, draft.lon),
@@ -208,14 +203,14 @@ fun DraftSheet(
                 TextButton(onClick = onMove, enabled = !publishing) { Text("Mover") }
             }
 
-            Section("¿Qué tipo es?")
+            Section("¿Qué es?")
             ChipRow {
                 Kind.entries.forEach { k ->
                     FilterChip(selected = draft.kind == k, onClick = { onChange(draft.copy(kind = k)) }, label = { Text(k.label) })
                 }
             }
 
-            Section("¿Quién la opera?")
+            Section("¿Quién lo administra?")
             ChipRow {
                 Agency.entries.forEach { a ->
                     FilterChip(selected = draft.agency == a, onClick = { onChange(draft.copy(agency = a)) }, label = { Text(a.label) })
@@ -231,7 +226,7 @@ fun DraftSheet(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            Section("¿Hacia dónde apunta? (opcional)")
+            Section("¿Hacia dónde mira? (opcional)")
             ChipRow {
                 FilterChip(selected = draft.direction == null, onClick = { onChange(draft.copy(direction = null)) }, label = { Text("No sé") })
                 listOf("N" to 0, "NE" to 45, "E" to 90, "SE" to 135, "S" to 180, "SO" to 225, "O" to 270, "NO" to 315).forEach { (n, deg) ->
@@ -244,7 +239,7 @@ fun DraftSheet(
                 value = draft.notes,
                 onValueChange = { onChange(draft.copy(notes = it.take(255))) },
                 label = { Text("Notas (opcional)") },
-                placeholder = { Text("Ej.: en el poste de la esquina, mira a la avenida") },
+                placeholder = { Text("Ej.: se entra por el camino de ripio, mejor al atardecer") },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2,
             )
@@ -252,7 +247,7 @@ fun DraftSheet(
             Spacer(Modifier.height(14.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = draft.seenInPerson, onCheckedChange = { onChange(draft.copy(seenInPerson = it)) })
-                Text("La vi en persona y la ubicación es correcta", style = MaterialTheme.typography.bodyMedium)
+                Text("Lo visité en persona y la ubicación es correcta", style = MaterialTheme.typography.bodyMedium)
             }
             Text(
                 "Se guarda solo en este teléfono. Podés pasarle tus puntos a otra persona desde el menú → Exportar.",
@@ -297,9 +292,10 @@ fun AboutDialog(onDismiss: () -> Unit) {
         title = { Text("streetviewer") },
         text = {
             Text(
-                "Mapa de cámaras de vigilancia.\n\n" +
-                    "• Rojo: operada por el Estado (municipio, policía, provincia, nación).\n" +
-                    "• Gris: privada o sin datos de quién la opera.\n\n" +
+                "Mapa de lugares.\n\n" +
+                    "• Violeta: murales.\n" +
+                    "• Verde: puntos panorámicos.\n" +
+                    "• Azul: estacionamientos.\n\n" +
                     "Los puntos que marcás se guardan solo en este teléfono: no se suben a ningún lado. " +
                     "Si desinstalás la app se pierden, así que de vez en cuando hacé una copia con «Exportar».\n\n" +
                     "El mapa de fondo necesita internet. Mapa base: OpenFreeMap, datos © colaboradores de OpenStreetMap."

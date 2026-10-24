@@ -47,6 +47,9 @@ import androidx.compose.material.icons.filled.AddLocationAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Landscape
+import androidx.compose.material.icons.filled.LocalParking
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Place
@@ -192,7 +195,7 @@ fun MapScreen(vm: MapViewModel) {
             modifier = Modifier.fillMaxSize(),
         )
 
-        // ── Pin para ubicar la cámara nueva ──
+        // ── Pin para ubicar el punto nuevo ──
         if (placing) {
             val d = LocalDensity.current.density
             val pin = remember { Pins.placing(d).asImageBitmap() }
@@ -264,8 +267,9 @@ fun MapScreen(vm: MapViewModel) {
                         Filter.entries.forEach { f ->
                             val icon = when (f) {
                                 Filter.ALL -> Icons.Default.Layers
-                                Filter.STATE -> Icons.Default.AccountBalance
-                                Filter.ALPR -> Icons.Default.DirectionsCar
+                                Filter.MURAL -> Icons.Default.Palette
+                                Filter.VIEW -> Icons.Default.Landscape
+                                Filter.PARKING -> Icons.Default.LocalParking
                             }
                             FilterChip(
                                 selected = filter == f,
@@ -295,9 +299,9 @@ fun MapScreen(vm: MapViewModel) {
                     shape = RoundedCornerShape(16.dp), shadowElevation = 6.dp, color = Color.White,
                 ) {
                     Column(Modifier.padding(16.dp)) {
-                        Text("Ubicá la cámara", style = MaterialTheme.typography.titleMedium)
+                        Text("Ubicá el punto", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "Mové el mapa hasta que el pin azul quede justo donde está la cámara. Acercate todo lo que puedas.",
+                            "Mové el mapa hasta que la marca quede justo sobre el lugar. Acercate todo lo que puedas.",
                             style = MaterialTheme.typography.bodyMedium, color = Gray,
                         )
                     }
@@ -462,8 +466,9 @@ private fun StatusPill(total: Int, inView: Int) {
 private fun Legend(modifier: Modifier) {
     Surface(modifier, shape = RoundedCornerShape(12.dp), shadowElevation = 3.dp, color = Color.White.copy(alpha = 0.95f)) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            LegendRow(Red, "Estatal")
-            LegendRow(Gray, "Privada / sin datos")
+            LegendRow(Color(Pins.PURPLE), "Mural")
+            LegendRow(Color(Pins.GREEN), "Panorámico")
+            LegendRow(Color(Pins.BLUE), "Estacionamiento")
         }
     }
 }

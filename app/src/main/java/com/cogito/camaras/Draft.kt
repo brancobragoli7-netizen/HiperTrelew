@@ -41,10 +41,10 @@ data class Draft(
 }
 
 enum class Agency(val label: String, val hint: String) {
-    CITY("Municipio", "Ej.: Municipalidad de Rosario"),
-    POLICE("Policía", "Ej.: Policía de la Ciudad"),
-    PROVINCE("Provincia / Estado", "Ej.: Ministerio de Seguridad de Córdoba"),
-    NATIONAL("Gobierno nacional", "Ej.: Gendarmería Nacional"),
-    TRAFFIC("Tránsito", "Ej.: Agencia de Seguridad Vial"),
+    CITY("Dirección de turismo", "Ej.: Dirección de Turismo de Trelew"),
+    POLICE("Guardafauna", "Ej.: Guardafauna de Península Valdés"),
+    PROVINCE("ANP", "Ej.: Área Natural Protegida Punta Tombo"),
+    NATIONAL("Ministerio de turismo", "Ej.: Ministerio de Turismo de Chubut"),
+    TRAFFIC("Vialidad", "Ej.: Vialidad Provincial"),
     UNKNOWN("No sé cuál", "Si sabés el organismo, escribilo"),
 }
