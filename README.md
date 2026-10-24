@@ -1,4 +1,4 @@
-# Cámaras
+# streetviewer
 
 Mapa comunitario de cámaras de vigilancia estatales, para Android.
 
@@ -6,7 +6,7 @@ Mapa comunitario de cámaras de vigilancia estatales, para Android.
 - Muestra las cámaras cargadas en OpenStreetMap: rojo = estatal, gris = privada o sin datos.
 - Filtros: todas, estatales, lectoras de patentes.
 - Buscador de lugares y botón de "mi ubicación".
-- "Marcar cámara": ubicás el pin, completás tipo, organismo y hacia dónde apunta,
+- "Marcar punto": ubicás el pin, completás tipo, organismo y hacia dónde apunta,
   y se publica en OpenStreetMap con tu cuenta (gratis).
 
 ## Conseguir el APK

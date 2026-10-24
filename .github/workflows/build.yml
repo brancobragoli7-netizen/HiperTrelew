@@ -27,7 +27,7 @@ jobs:
           set -o pipefail
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon 2>&1 | tee build.log
-          cp app/build/outputs/apk/release/app-release.apk Camaras.apk
+          cp app/build/outputs/apk/release/app-release.apk streetviewer.apk
 
       # Si falla, deja los errores visibles como anotacion
       - name: Errores
@@ -40,14 +40,14 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Camaras.apk
-          path: Camaras.apk
+          name: streetviewer.apk
+          path: streetviewer.apk
 
       # Publica el APK en la sección "Releases" para bajarlo directo desde el celular
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
-          name: Cámaras v1.0.${{ github.run_number }}
-          body: Descargá Camaras.apk e instalalo en Android.
-          files: Camaras.apk
+          name: streetviewer v1.0.${{ github.run_number }}
+          body: Descargá streetviewer.apk e instalalo en Android.
+          files: streetviewer.apk
           make_latest: true
