@@ -303,7 +303,7 @@ fun EditorFallbackDialog(lat: Double, lon: Double, onDismiss: () -> Unit) {
 fun AboutDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Cámaras") },
+        title = { Text("streetviewer") },
         text = {
             Text(
                 "Mapa comunitario de cámaras de vigilancia.\n\n" +

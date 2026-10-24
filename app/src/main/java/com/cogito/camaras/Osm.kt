@@ -113,7 +113,7 @@ object OsmEditor {
             "${Config.OSM_API}/changeset/create", "PUT",
             osm(
                 "<changeset>" +
-                    tag("created_by", "Camaras Android ${BuildInfo.VERSION}") +
+                    tag("created_by", "streetviewer ${BuildInfo.VERSION}") +
                     tag("comment", "Agrega cámara de vigilancia estatal") +
                     tag("source", "survey") +
                     tag("locale", "es") +
@@ -144,5 +144,5 @@ object OsmEditor {
 }
 
 object BuildInfo {
-    const val VERSION = "1.0"
+    const val VERSION = "1.1"
 }

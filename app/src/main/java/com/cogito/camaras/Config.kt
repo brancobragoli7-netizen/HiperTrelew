@@ -23,7 +23,7 @@ object Config {
     const val NOMINATIM = "https://nominatim.openstreetmap.org/search"
 
     /** Identificación que piden los servidores de OpenStreetMap. */
-    const val USER_AGENT = "CamarasMapa/1.0 (Android; app comunitaria de camaras de vigilancia)"
+    const val USER_AGENT = "streetviewer/1.1 (Android; mapa comunitario de camaras de vigilancia)"
 
     /** Por debajo de este zoom no se piden cámaras (el área sería enorme). */
     const val MIN_ZOOM_CAMERAS = 12.0

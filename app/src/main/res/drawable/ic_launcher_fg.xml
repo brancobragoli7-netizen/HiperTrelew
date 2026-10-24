@@ -1,12 +1,11 @@
+<!-- Silueta de un tordo posado en una rama -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#FFFFFFFF"
-        android:pathData="M54,28c-11,0 -20,9 -20,20c0,15 20,34 20,34s20,-19 20,-34c0,-11 -9,-20 -20,-20z" />
-    <path android:fillColor="#FFD93025"
-        android:pathData="M43,42l16,-4l3,10l-16,4z" />
-    <path android:fillColor="#FFD93025"
-        android:pathData="M62,44l5,-3l1,6l-5,1z" />
-    <path android:fillColor="#FFD93025"
-        android:pathData="M48,51h3v6h-6v-3h3z" />
+    <path android:fillColor="#FF111111"
+        android:pathData="M82.5,37.8 L72.6,41.6 C72.4,48.5 70.2,57.5 63.2,63.4 C59.2,66.6 54.2,67.6 49.6,67.1 L37.6,81.8 L33.6,79.4 L44,62 C45.6,52 49.8,42 56.6,35.6 C58.8,29.6 64.4,26.8 68.6,28.4 C71.6,29.6 73,31.6 73.2,34.2 Z" />
+    <path android:fillColor="#FF111111"
+        android:pathData="M53.4,66.6 L55.4,66.6 L54.7,76 L52.7,76 Z M58.4,65.6 L60.4,65.6 L60.3,76 L58.3,76 Z" />
+    <path android:fillColor="#FF111111"
+        android:pathData="M35,76 C48,75 63,75 77,76.4 L77,78.6 C63,77.3 48,77.3 35,78.4 Z" />
 </vector>

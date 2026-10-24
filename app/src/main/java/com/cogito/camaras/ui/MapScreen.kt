@@ -323,7 +323,7 @@ fun MapScreen(vm: MapViewModel) {
                     },
                     containerColor = Blue, contentColor = Color.White,
                     icon = { Icon(Icons.Default.AddLocationAlt, null) },
-                    text = { Text("Marcar cámara") },
+                    text = { Text("Marcar punto") },
                 )
             }
         } else {
