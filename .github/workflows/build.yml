@@ -22,10 +22,21 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Compilar
+        shell: bash
         run: |
+          set -o pipefail
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          ./gradlew assembleRelease --no-daemon 2>&1 | tee build.log
           cp app/build/outputs/apk/release/app-release.apk Camaras.apk
+
+      # Si falla, deja los errores visibles como anotacion
+      - name: Errores
+        if: failure()
+        shell: bash
+        run: |
+          msg=$(grep -E "^e: |What went wrong|Could not|error:|^> " build.log | head -60 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          echo "::error title=Compilacion::$msg"
+
 
       - uses: actions/upload-artifact@v4
         with:
