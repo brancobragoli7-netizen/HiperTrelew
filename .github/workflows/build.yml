@@ -34,7 +34,7 @@ jobs:
         if: failure()
         shell: bash
         run: |
-          msg=$(grep -E "^e: |What went wrong|Could not|error:|^> " build.log | head -60 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          msg=$(grep -E "^e: |What went wrong|Could not|error:" build.log | head -60 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
           echo "::error title=Compilacion::$msg"
 
 

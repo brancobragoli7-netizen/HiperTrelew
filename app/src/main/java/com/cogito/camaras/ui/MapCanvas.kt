@@ -53,7 +53,7 @@ class MapHandle {
 
     fun bounds(): Bounds? {
         val b = map?.projection?.visibleRegion?.latLngBounds ?: return null
-        return Bounds(b.latSouth, b.lonWest, b.latNorth, b.lonEast)
+        return Bounds(b.latitudeSouth, b.longitudeWest, b.latitudeNorth, b.longitudeEast)
     }
 
     fun flyTo(lat: Double, lon: Double, zoom: Double = 16.0) {
