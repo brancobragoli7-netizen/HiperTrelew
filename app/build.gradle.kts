@@ -12,8 +12,8 @@ android {
         applicationId = "com.cogito.camaras"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
     }
 
     // Clave propia: cada APK nuevo se instala encima del anterior.
@@ -64,7 +64,6 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
-    implementation("androidx.browser:browser:1.8.0")
 
     // Mapa (código abierto, sin clave de Google)
     implementation("org.maplibre.gl:android-sdk:11.8.0")

@@ -1,7 +1,10 @@
 package com.cogito.camaras
 
-import kotlinx.coroutines.CancellationException
-import org.json.JSONObject
+import android.content.Context
+import android.location.Geocoder
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.util.Locale
 
 enum class Kind(val label: String) {
     FIXED("Cámara fija"),
@@ -11,7 +14,7 @@ enum class Kind(val label: String) {
 
 enum class Filter(val label: String) { ALL("Todas"), STATE("Estatales"), ALPR("Patentes") }
 
-/** Una cámara tal como está cargada en OpenStreetMap. */
+/** Un punto marcado y guardado en este teléfono. */
 data class Camera(
     val id: Long,
     val lat: Double,
@@ -25,7 +28,9 @@ data class Camera(
         else -> Kind.FIXED
     }
 
-    /** Estatal si OpenStreetMap lo dice, o si el nombre del operador es un organismo público. */
+    val agency: Agency? = tags["agency"]?.let { a -> Agency.entries.find { it.name == a } }
+
+    /** Estatal si así se marcó, o si el nombre del operador es un organismo público. */
     val isState: Boolean = run {
         val type = tags["operator:type"]?.lowercase()
         if (type != null) return@run type in STATE_TYPES
@@ -34,10 +39,11 @@ data class Camera(
     }
 
     val isKnownPrivate: Boolean =
-        tags["operator:type"]?.lowercase() in setOf("private", "business", "commercial", "private_non_profit") ||
-            tags["surveillance"] == "indoor"
+        tags["operator:type"]?.lowercase() in setOf("private", "business", "commercial", "private_non_profit")
 
     val operator: String? = tags["operator"]
+
+    val seenInPerson: Boolean = tags["seen"] == "yes"
 
     val directionDeg: Int? = tags["camera:direction"]?.let { parseDirection(it) }
 
@@ -59,7 +65,7 @@ data class Camera(
         val STATE_WORDS = Regex(
             "polic|municip|gobierno|ministerio|ayuntamiento|intendencia|prefectura|gendarmer|" +
                 "tr[aá]nsito|seguridad ciudadana|ciudad de|provincia|estado|federal|nacional|" +
-                "police|council|city of|county|government|department of|state of|dot\\b|carabineros",
+                "police|council|city of|county|government|department of|state of|carabineros",
         )
 
         private val CARDINAL = mapOf(
@@ -71,63 +77,23 @@ data class Camera(
             val s = v.trim().substringBefore(';').substringBefore('-').uppercase()
             return s.toDoubleOrNull()?.toInt()?.mod(360) ?: CARDINAL[s]
         }
-
-        fun fromOverpass(json: String): List<Camera> {
-            val els = JSONObject(json).optJSONArray("elements") ?: return emptyList()
-            val out = ArrayList<Camera>(els.length())
-            for (i in 0 until els.length()) {
-                val e = els.getJSONObject(i)
-                if (e.optString("type") != "node") continue
-                val t = e.optJSONObject("tags")
-                val tags = HashMap<String, String>()
-                if (t != null) for (k in t.keys()) tags[k] = t.getString(k)
-                // Guardias y otras formas de vigilancia que no son cámaras quedan afuera
-                val st = tags["surveillance:type"]?.lowercase()
-                if (st != null && st != "camera" && st != "alpr") continue
-                out += Camera(e.getLong("id"), e.getDouble("lat"), e.getDouble("lon"), tags, e.optString("timestamp").ifEmpty { null })
-            }
-            return out
-        }
-    }
-}
-
-/** Lee las cámaras de un área desde OpenStreetMap (servidores Overpass). */
-object CameraSource {
-
-    suspend fun fetch(south: Double, west: Double, north: Double, east: Double): List<Camera> {
-        val bbox = "%.5f,%.5f,%.5f,%.5f".format(java.util.Locale.US, south, west, north, east)
-        val query = """[out:json][timeout:25];node["man_made"="surveillance"]($bbox);out meta 5000;"""
-        var last: Exception? = null
-        for (server in Config.OVERPASS) {
-            try {
-                val json = Http.request(server, "POST", Http.form("data" to query), timeoutMs = 40_000)
-                return Camera.fromOverpass(json)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                last = e
-            }
-        }
-        throw last ?: IllegalStateException("Sin servidores")
     }
 }
 
 data class Place(val name: String, val lat: Double, val lon: Double, val bbox: DoubleArray?)
 
-/** Búsqueda de direcciones y lugares (Nominatim, de OpenStreetMap). */
+/** Búsqueda de direcciones con el buscador que trae el propio Android. */
 object PlaceSearch {
-    suspend fun search(q: String, nearLat: Double?, nearLon: Double?): List<Place> {
-        var url = "${Config.NOMINATIM}?format=jsonv2&limit=6&accept-language=es&q=" + Http.enc(q)
-        if (nearLat != null && nearLon != null) {
-            // Prioriza resultados cerca de lo que estás mirando, sin excluir el resto
-            val d = 1.0
-            url += "&viewbox=${nearLon - d},${nearLat + d},${nearLon + d},${nearLat - d}"
-        }
-        val arr = org.json.JSONArray(Http.request(url))
-        return (0 until arr.length()).map { i ->
-            val o = arr.getJSONObject(i)
-            val bb = o.optJSONArray("boundingbox")?.let { b -> DoubleArray(4) { b.getString(it).toDouble() } }
-            Place(o.getString("display_name"), o.getString("lat").toDouble(), o.getString("lon").toDouble(), bb)
+    suspend fun search(context: Context, q: String): List<Place> = withContext(Dispatchers.IO) {
+        if (!Geocoder.isPresent()) throw IllegalStateException("Este teléfono no tiene buscador de direcciones")
+        val geo = Geocoder(context, Locale("es", "AR"))
+        @Suppress("DEPRECATION")
+        val list = geo.getFromLocationName(q, 6) ?: emptyList()
+        list.map { a ->
+            val lines = (0..a.maxAddressLineIndex).mapNotNull { a.getAddressLine(it) }
+            val full = lines.joinToString(", ").ifEmpty { a.featureName ?: q }
+            Place(full, a.latitude, a.longitude, null)
         }
     }
 }
+

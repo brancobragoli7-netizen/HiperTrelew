@@ -1,6 +1,5 @@
 package com.cogito.camaras
 
-import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -22,7 +21,6 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
         )
-        handleAuth(intent)
         setContent {
             MaterialTheme(
                 colorScheme = lightColorScheme(
@@ -36,20 +34,6 @@ class MainActivity : ComponentActivity() {
             ) {
                 MapScreen(vm)
             }
-        }
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        handleAuth(intent)
-    }
-
-    /** Vuelta del inicio de sesión de OpenStreetMap. */
-    private fun handleAuth(intent: Intent?) {
-        val uri = intent?.data ?: return
-        if (uri.scheme == "camarasmap" && uri.host == "oauth") {
-            vm.onAuthRedirect(uri)
-            intent.data = null
         }
     }
 }

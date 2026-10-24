@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
@@ -92,9 +93,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.cogito.camaras.Bounds
 import com.cogito.camaras.Filter
-import com.cogito.camaras.LoadState
 import com.cogito.camaras.MapViewModel
-import com.cogito.camaras.OsmAuth
 
 private fun Context.hasLocation() =
     ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
@@ -108,13 +107,11 @@ fun MapScreen(vm: MapViewModel) {
     val prefs = remember { context.getSharedPreferences("mapa", Context.MODE_PRIVATE) }
 
     val cameras by vm.cameras.collectAsState()
-    val load by vm.load.collectAsState()
+    val loaded by vm.loaded.collectAsState()
     val filter by vm.filter.collectAsState()
     val selected by vm.selected.collectAsState()
     val placing by vm.placing.collectAsState()
     val draft by vm.draft.collectAsState()
-    val publishing by vm.publishing.collectAsState()
-    val user by vm.user.collectAsState()
     val message by vm.message.collectAsState()
     val results by vm.results.collectAsState()
     val searching by vm.searching.collectAsState()
@@ -123,11 +120,18 @@ fun MapScreen(vm: MapViewModel) {
     var searchFocused by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     var about by remember { mutableStateOf(false) }
-    var fallbackAt by remember { mutableStateOf<Pair<Double, Double>?>(null) }
     var visible by remember { mutableStateOf<Bounds?>(null) }
     var zoom by remember { mutableStateOf(0.0) }
     var centerOnLocation by remember { mutableStateOf(false) }
     val snack = remember { SnackbarHostState() }
+
+    // Copias de seguridad: elegir dónde guardar / qué archivo abrir
+    val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) vm.exportTo(uri)
+    }
+    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) vm.importFrom(uri)
+    }
 
     val locationPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { r ->
         if (r.values.any { it }) {
@@ -172,7 +176,6 @@ fun MapScreen(vm: MapViewModel) {
             startLat = startLat, startLon = startLon, startZoom = startZoom,
             onIdle = { b, z ->
                 visible = b; zoom = z
-                vm.onCameraIdle(b, z)
                 handle.center?.let {
                     prefs.edit().putFloat("lat", it.latitude.toFloat()).putFloat("lon", it.longitude.toFloat())
                         .putFloat("zoom", z.toFloat()).apply()
@@ -210,16 +213,18 @@ fun MapScreen(vm: MapViewModel) {
                     onFocus = { searchFocused = it },
                     onSearch = {
                         focus.clearFocus()
-                        val c = handle.center
-                        vm.search(query, c?.latitude, c?.longitude)
+                        vm.search(query)
                     },
                     onClear = { query = ""; vm.results.value = emptyList() },
                     searching = searching,
-                    user = user,
                     menu = menu,
                     onMenu = { menu = it },
-                    onLogin = { menu = false; vm.login() },
-                    onLogout = { menu = false; vm.logout() },
+                    onExport = {
+                        menu = false
+                        if (cameras.isEmpty()) vm.message.value = "Todavía no hay puntos para exportar"
+                        else exporter.launch("streetviewer-puntos.json")
+                    },
+                    onImport = { menu = false; importer.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
                     onAbout = { menu = false; about = true },
                 )
                 if (results.isNotEmpty()) {
@@ -277,11 +282,11 @@ fun MapScreen(vm: MapViewModel) {
                             )
                         }
                     }
-                    StatusPill(load, cameras.values.count { c ->
-                        val b = visible
-                        c.matches(filter) && b != null && c.lat in b.south..b.north && c.lon in b.west..b.east
-                    }) {
-                        visible?.let { vm.retry(it, zoom) }
+                    if (loaded) {
+                        StatusPill(
+                            total = cameras.size,
+                            inView = cameras.values.count { c -> c.matches(filter) && visible?.contains(c.lat, c.lon) == true },
+                        )
                     }
                 }
             } else {
@@ -339,8 +344,7 @@ fun MapScreen(vm: MapViewModel) {
                     Button(
                         onClick = {
                             val c = handle.center ?: return@Button
-                            if (OsmAuth.enabled) vm.confirmPlace(c.latitude, c.longitude)
-                            else { vm.cancelPlacing(); fallbackAt = c.latitude to c.longitude }
+                            vm.confirmPlace(c.latitude, c.longitude)
                         },
                         modifier = Modifier.weight(1f).height(48.dp),
                     ) { Text("Acá está") }
@@ -354,24 +358,28 @@ fun MapScreen(vm: MapViewModel) {
         )
     }
 
-    selected?.let { CameraSheet(it) { vm.selected.value = null } }
+    selected?.let { cam ->
+        CameraSheet(
+            cam = cam,
+            onEdit = { vm.edit(cam) },
+            onDelete = { vm.delete(cam) },
+            onDismiss = { vm.selected.value = null },
+        )
+    }
     draft?.let { d ->
         if (!placing) {
             DraftSheet(
                 draft = d,
-                userName = user,
-                publishing = publishing,
                 onChange = vm::updateDraft,
                 onMove = {
                     vm.placing.value = true
                     handle.flyTo(d.lat, d.lon, maxOf(handle.zoom, 18.0))
                 },
-                onPublish = vm::publish,
+                onSave = vm::save,
                 onDismiss = vm::cancelPlacing,
             )
         }
     }
-    fallbackAt?.let { (lat, lon) -> EditorFallbackDialog(lat, lon) { fallbackAt = null } }
     if (about) AboutDialog { about = false }
 }
 
@@ -384,11 +392,10 @@ private fun SearchBar(
     onSearch: () -> Unit,
     onClear: () -> Unit,
     searching: Boolean,
-    user: String?,
     menu: Boolean,
     onMenu: (Boolean) -> Unit,
-    onLogin: () -> Unit,
-    onLogout: () -> Unit,
+    onExport: () -> Unit,
+    onImport: () -> Unit,
     onAbout: () -> Unit,
 ) {
     val focusManager = LocalFocusManager.current
@@ -421,21 +428,11 @@ private fun SearchBar(
             }
             Box {
                 IconButton(onClick = { onMenu(true) }) {
-                    if (user != null) {
-                        Box(Modifier.size(32.dp).background(Blue, CircleShape), contentAlignment = Alignment.Center) {
-                            Text(user.take(1).uppercase(), color = Color.White, fontSize = 15.sp)
-                        }
-                    } else {
-                        Icon(Icons.Default.AccountCircle, "Cuenta", tint = Gray, modifier = Modifier.size(32.dp))
-                    }
+                    Icon(Icons.Default.MoreVert, "Menú", tint = Gray)
                 }
                 DropdownMenu(expanded = menu, onDismissRequest = { onMenu(false) }) {
-                    if (user != null) {
-                        DropdownMenuItem(text = { Text("Sesión: $user", color = Gray) }, onClick = {}, enabled = false)
-                        DropdownMenuItem(text = { Text("Cerrar sesión") }, onClick = onLogout)
-                    } else if (OsmAuth.enabled) {
-                        DropdownMenuItem(text = { Text("Iniciar sesión en OpenStreetMap") }, onClick = onLogin)
-                    }
+                    DropdownMenuItem(text = { Text("Exportar mis puntos") }, onClick = onExport)
+                    DropdownMenuItem(text = { Text("Importar puntos") }, onClick = onImport)
                     DropdownMenuItem(text = { Text("Acerca de") }, onClick = onAbout)
                 }
             }
@@ -444,26 +441,19 @@ private fun SearchBar(
 }
 
 @Composable
-private fun StatusPill(load: LoadState, count: Int, onRetry: () -> Unit) {
-    val (text, showSpinner) = when (load) {
-        LoadState.TOO_FAR -> "Acercate para ver las cámaras" to false
-        LoadState.LOADING -> "Buscando cámaras…" to true
-        LoadState.ERROR -> "No se pudieron cargar · Tocá para reintentar" to false
-        LoadState.READY -> (if (count == 0) "No hay cámaras cargadas en esta zona" else "$count " + (if (count == 1) "cámara" else "cámaras") + " en esta zona") to false
+private fun StatusPill(total: Int, inView: Int) {
+    val text = when {
+        total == 0 -> "Todavía no marcaste puntos · Tocá «Marcar punto»"
+        inView == 0 -> "No hay puntos en esta zona"
+        else -> "$inView " + (if (inView == 1) "punto" else "puntos") + " en esta zona"
     }
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Surface(
-            shape = RoundedCornerShape(16.dp), shadowElevation = 3.dp,
-            color = if (load == LoadState.ERROR) Color(0xFFFCE8E6) else Color.White,
-            modifier = Modifier.clickable(enabled = load == LoadState.ERROR, onClick = onRetry),
-        ) {
-            Row(Modifier.padding(horizontal = 14.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (showSpinner) {
-                    CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(8.dp))
-                }
-                Text(text, style = MaterialTheme.typography.labelLarge, color = if (load == LoadState.ERROR) Red else Color(0xFF3C4043))
-            }
+        Surface(shape = RoundedCornerShape(16.dp), shadowElevation = 3.dp, color = Color.White) {
+            Text(
+                text,
+                style = MaterialTheme.typography.labelLarge, color = Color(0xFF3C4043),
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+            )
         }
     }
 }

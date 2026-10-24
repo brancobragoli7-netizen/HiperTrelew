@@ -24,6 +24,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -62,13 +67,10 @@ fun open(context: Context, url: String) {
     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
 
-fun openEditorAt(context: Context, lat: Double, lon: Double) =
-    open(context, "${Config.OSM_WEB}/edit?editor=id#map=20/%.6f/%.6f".format(java.util.Locale.US, lat, lon))
-
 fun directions(context: Context, lat: Double, lon: Double) {
     val nav = Intent(Intent.ACTION_VIEW, Uri.parse("geo:$lat,$lon?q=$lat,$lon(Cámara)")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     runCatching { context.startActivity(nav) }.onFailure {
-        open(context, "https://www.openstreetmap.org/directions?to=$lat%2C$lon")
+        open(context, "https://www.google.com/maps/dir/?api=1&destination=$lat,$lon")
     }
 }
 
@@ -89,8 +91,9 @@ private val MOUNTS = mapOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CameraSheet(cam: Camera, onDismiss: () -> Unit) {
+fun CameraSheet(cam: Camera, onEdit: () -> Unit, onDelete: () -> Unit, onDismiss: () -> Unit) {
     val context = LocalContext.current
+    var confirmDelete by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Color.White) {
         Column(
             Modifier
@@ -118,16 +121,17 @@ fun CameraSheet(cam: Camera, onDismiss: () -> Unit) {
                 Button(onClick = { directions(context, cam.lat, cam.lon) }) {
                     Icon(Icons.Default.Directions, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Cómo llegar")
                 }
-                OutlinedButton(onClick = { open(context, "${Config.OSM_WEB}/edit?editor=id&node=${cam.id}") }) {
-                    Icon(Icons.Default.Edit, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Corregir")
+                OutlinedButton(onClick = onEdit) {
+                    Icon(Icons.Default.Edit, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Editar")
                 }
-                OutlinedButton(onClick = { open(context, "${Config.OSM_WEB}/node/${cam.id}") }) {
-                    Icon(Icons.AutoMirrored.Filled.OpenInNew, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Ver en OSM")
+                OutlinedButton(onClick = { confirmDelete = true }) {
+                    Icon(Icons.Default.Delete, null, Modifier.size(18.dp), tint = Red); Spacer(Modifier.width(8.dp)); Text("Eliminar", color = Red)
                 }
             }
             Spacer(Modifier.height(20.dp))
 
-            Info("Operador", cam.operator ?: "Sin datos")
+            cam.agency?.let { Info("Quién la opera", it.label) }
+            Info("Organismo", cam.operator ?: "Sin datos")
             cam.directionDeg?.let { deg ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
                     Column(Modifier.weight(1f)) {
@@ -143,15 +147,25 @@ fun CameraSheet(cam: Camera, onDismiss: () -> Unit) {
             cam.tags["ref"]?.let { Info("Número", it) }
             cam.timestamp?.let { ts ->
                 val d = ts.take(10).split("-")
-                if (d.size == 3) Info("Última edición", "${d[2]}/${d[1]}/${d[0]}")
+                if (d.size == 3) Info("Marcada / editada", "${d[2]}/${d[1]}/${d[0]}")
             }
+            if (cam.seenInPerson) Info("Verificación", "Vista en persona")
             Spacer(Modifier.height(10.dp))
             Text(
                 "%.6f, %.6f".format(java.util.Locale.US, cam.lat, cam.lon),
                 style = MaterialTheme.typography.bodySmall, color = Gray,
             )
-            Text("Datos © colaboradores de OpenStreetMap", style = MaterialTheme.typography.bodySmall, color = Gray)
+            Text("Guardado solo en este teléfono", style = MaterialTheme.typography.bodySmall, color = Gray)
         }
+    }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("¿Eliminar este punto?") },
+            text = { Text("Se borra de este teléfono. No se puede deshacer.") },
+            confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete() }) { Text("Eliminar", color = Red) } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancelar") } },
+        )
     }
 }
 
@@ -169,13 +183,12 @@ private fun Info(label: String, value: String) {
 @Composable
 fun DraftSheet(
     draft: Draft,
-    userName: String?,
-    publishing: Boolean,
     onChange: (Draft) -> Unit,
     onMove: () -> Unit,
-    onPublish: () -> Unit,
+    onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val publishing = false
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(onDismissRequest = { if (!publishing) onDismiss() }, sheetState = state, containerColor = Color.White) {
         Column(
@@ -186,7 +199,7 @@ fun DraftSheet(
                 .navigationBarsPadding()
                 .padding(bottom = 20.dp)
         ) {
-            Text("Nueva cámara", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Medium)
+            Text(if (draft.editingId == null) "Nueva cámara" else "Editar punto", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Medium)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "%.5f, %.5f".format(java.util.Locale.US, draft.lat, draft.lon),
@@ -242,14 +255,13 @@ fun DraftSheet(
                 Text("La vi en persona y la ubicación es correcta", style = MaterialTheme.typography.bodyMedium)
             }
             Text(
-                "Se publica en OpenStreetMap, un mapa público y abierto. El cambio queda asociado a tu usuario de OSM" +
-                    (if (userName != null) " ($userName)." else "."),
+                "Se guarda solo en este teléfono. Podés pasarle tus puntos a otra persona desde el menú → Exportar.",
                 style = MaterialTheme.typography.bodySmall, color = Gray,
             )
             Spacer(Modifier.height(16.dp))
             Button(
-                onClick = onPublish,
-                enabled = draft.seenInPerson && !publishing,
+                onClick = onSave,
+                enabled = !publishing,
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(25.dp),
             ) {
@@ -257,7 +269,7 @@ fun DraftSheet(
                     CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
                     Spacer(Modifier.width(10.dp)); Text("Publicando…")
                 } else {
-                    Text(if (userName == null) "Iniciar sesión y publicar" else "Publicar")
+                    Text("Guardar")
                 }
             }
         }
@@ -279,40 +291,18 @@ private fun ChipRow(content: @Composable () -> Unit) {
 // ───────────────────────── Diálogos ─────────────────────────
 
 @Composable
-fun EditorFallbackDialog(lat: Double, lon: Double, onDismiss: () -> Unit) {
-    val context = LocalContext.current
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Agregar en OpenStreetMap") },
-        text = {
-            Text(
-                "Se va a abrir el editor de OpenStreetMap justo en ese punto.\n\n" +
-                    "1. Iniciá sesión con tu cuenta de OSM.\n" +
-                    "2. Tocá «Punto» y ponelo sobre la cámara.\n" +
-                    "3. Buscá «Cámara de vigilancia».\n" +
-                    "4. En «Operador» escribí el organismo (ej.: Municipalidad de…).\n" +
-                    "5. Guardá.\n\nEn unos minutos aparece en esta app."
-            )
-        },
-        confirmButton = { TextButton(onClick = { openEditorAt(context, lat, lon); onDismiss() }) { Text("Abrir editor") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
-    )
-}
-
-@Composable
 fun AboutDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("streetviewer") },
         text = {
             Text(
-                "Mapa comunitario de cámaras de vigilancia.\n\n" +
+                "Mapa de cámaras de vigilancia.\n\n" +
                     "• Rojo: operada por el Estado (municipio, policía, provincia, nación).\n" +
                     "• Gris: privada o sin datos de quién la opera.\n\n" +
-                    "Los datos son de OpenStreetMap, un mapa libre hecho por voluntarios. " +
-                    "Lo que agregás desde acá se publica ahí y lo puede ver cualquiera.\n\n" +
-                    "Marcá solo cámaras que viste en persona.\n\n" +
-                    "Datos © colaboradores de OpenStreetMap (ODbL). Mapa base: OpenFreeMap."
+                    "Los puntos que marcás se guardan solo en este teléfono: no se suben a ningún lado. " +
+                    "Si desinstalás la app se pierden, así que de vez en cuando hacé una copia con «Exportar».\n\n" +
+                    "El mapa de fondo necesita internet. Mapa base: OpenFreeMap, datos © colaboradores de OpenStreetMap."
             )
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Entendido") } },
